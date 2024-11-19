@@ -1,5 +1,7 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
+#include <time.h>
 
 #define MAX_PROCESSES 10         // Número máximo de processos suportados
 #define MAX_FRAMES 128           // Número máximo de quadros na memória física
@@ -16,15 +18,21 @@ typedef struct {
     int memory_size;               // Tamanho total da memória física
     int num_frames;                // Número de quadros disponíveis
     bool frame_bitmap[MAX_FRAMES]; // Mapa de bits para os quadros livres
+    float frame_usage[MAX_FRAMES]; // Percentual de ocupação por quadro
+    int frame_process[MAX_FRAMES]; // ID do processo que ocupa cada quadro
+    int frame_page[MAX_FRAMES];    // Página do processo que ocupa cada quadro
     unsigned char memory[MAX_FRAMES * FRAME_SIZE]; // Memória física representada por um vetor de bytes
 } Memory;
 
-void init_memory(Memory *mem, int memory_size) {
+void init_memory(Memory *mem, int memory_size, int frame_size) {
     mem->memory_size = memory_size;
-    mem->num_frames = memory_size / FRAME_SIZE;
+    mem->num_frames = memory_size / frame_size;
 
     for (int i = 0; i < mem->num_frames; i++) {
         mem->frame_bitmap[i] = false;  // Marca todos os quadros como livres
+        mem->frame_usage[i] = 0.0;     // Define ocupação inicial como 0%
+        mem->frame_process[i] = -1;   // Nenhum processo associado
+        mem->frame_page[i] = -1;      // Nenhuma página associada
     }
 
     for (int i = 0; i < mem->memory_size; i++) {
@@ -32,27 +40,44 @@ void init_memory(Memory *mem, int memory_size) {
     }
 }
 
-void init_process(Process *process, int process_id, int process_size) {
+void init_process(Process *process, int process_id, int process_size, int frame_size) {
     process->process_id = process_id;
-    process->page_count = (process_size + FRAME_SIZE - 1) / FRAME_SIZE;
+    process->page_count = (process_size + frame_size - 1) / frame_size; // Arredondamento para cima
 
     for (int i = 0; i < MAX_PAGES_PER_PROCESS; i++) {
-        process->page_table[i] = -1;
+        process->page_table[i] = -1; // Inicializa a tabela de páginas com -1 (página não mapeada)
     }
 }
 
-bool allocate_memory(Memory *mem, Process *process) {
+bool allocate_memory(Memory *mem, Process *process, int process_size, int frame_size) {
     int allocated_frames = 0;
+    int attempts = 0;
 
-    for (int i = 0; i < mem->num_frames && allocated_frames < process->page_count; i++) {
-        if (!mem->frame_bitmap[i]) {
-            mem->frame_bitmap[i] = true;
-            process->page_table[allocated_frames] = i;
+    while (allocated_frames < process->page_count && attempts < mem->num_frames * 2) {
+        int random_frame = rand() % mem->num_frames; // Seleciona um quadro aleatório
+
+        if (!mem->frame_bitmap[random_frame]) { // Verifica se o quadro está livre
+            mem->frame_bitmap[random_frame] = true;
+            process->page_table[allocated_frames] = random_frame; // Mapeia a página para o quadro
+
+            if (allocated_frames == process->page_count - 1) { // Última página
+                int remaining_bytes = process_size % frame_size;
+                mem->frame_usage[random_frame] = remaining_bytes > 0 
+                    ? (remaining_bytes / (float)frame_size) * 100.0
+                    : 100.0; // Calcula ocupação se sobrar bytes
+            } else {
+                mem->frame_usage[random_frame] = 100.0; // Quadro totalmente ocupado
+            }
+
+            mem->frame_process[random_frame] = process->process_id; // Associa ao processo
+            mem->frame_page[random_frame] = allocated_frames;       // Associa à página
+
             allocated_frames++;
         }
+        attempts++;
     }
 
-    return allocated_frames == process->page_count;
+    return allocated_frames == process->page_count; // Retorna true se todas as páginas foram alocadas
 }
 
 void display_memory(Memory *mem) {
@@ -64,10 +89,15 @@ void display_memory(Memory *mem) {
         }
     }
 
-    printf("Memória Livre: %.2f%%\n", (100.0 * free_frames) / mem->num_frames);
+    printf("\nMemória Livre: %.2f%%\n", (100.0 * free_frames) / mem->num_frames);
 
     for (int i = 0; i < mem->num_frames; i++) {
-        printf("Quadro %d: %s\n", i, mem->frame_bitmap[i] ? "Ocupado" : "Livre");
+        if (mem->frame_bitmap[i]) {
+            printf("Quadro %d: Ocupado, %.2f%% usado, Processo %d, Página %d\n",
+                   i, mem->frame_usage[i], mem->frame_process[i], mem->frame_page[i]);
+        } else {
+            printf("Quadro %d: Livre\n", i);
+        }
     }
 }
 
@@ -78,27 +108,23 @@ void display_page_table(Process *process) {
     }
 }
 
-Process *find_process_by_id(Process processes[], int num_processes, int process_id) {
-    for (int i = 0; i < num_processes; i++) {
-        if (processes[i].process_id == process_id) {
-            return &processes[i];
-        }
-    }
-    return NULL;
-}
-
 int main() {
     Memory mem;
     Process processes[MAX_PROCESSES];
     int num_processes = 0;
 
-    int memory_size, max_process_size;
+    int memory_size, max_process_size, frame_size;
+
+    srand(time(NULL)); // Inicializa o gerador de números aleatórios
+
     printf("Digite o tamanho da memória física (em bytes): ");
     scanf("%d", &memory_size);
+    printf("Digite o tamanho do quadro: ");
+    scanf("%d", &frame_size);
     printf("Digite o tamanho máximo de um processo (em bytes): ");
     scanf("%d", &max_process_size);
 
-    init_memory(&mem, memory_size);
+    init_memory(&mem, memory_size, frame_size);
 
     while (1) {
         int option;
@@ -108,19 +134,9 @@ int main() {
         if (option == 1) {
             display_memory(&mem);
         } else if (option == 2) {
-            if (num_processes >= MAX_PROCESSES) {
-                printf("Erro: Número máximo de processos alcançado.\n");
-                continue;
-            }
-
             int process_id, process_size;
             printf("Digite o ID do processo: ");
             scanf("%d", &process_id);
-            if (find_process_by_id(processes, num_processes, process_id)) {
-                printf("Erro: Processo com ID %d já existe.\n", process_id);
-                continue;
-            }
-
             printf("Digite o tamanho do processo (em bytes): ");
             scanf("%d", &process_size);
 
@@ -129,10 +145,9 @@ int main() {
                 continue;
             }
 
-            Process *new_process = &processes[num_processes];
-            init_process(new_process, process_id, process_size);
+            init_process(&processes[num_processes], process_id, process_size, frame_size);
 
-            if (allocate_memory(&mem, new_process)) {
+            if (allocate_memory(&mem, &processes[num_processes], process_size, frame_size)) {
                 printf("Processo %d criado com sucesso.\n", process_id);
                 num_processes++;
             } else {
@@ -143,10 +158,15 @@ int main() {
             printf("Digite o ID do processo: ");
             scanf("%d", &process_id);
 
-            Process *process = find_process_by_id(processes, num_processes, process_id);
-            if (process) {
-                display_page_table(process);
-            } else {
+            bool found = false;
+            for (int i = 0; i < num_processes; i++) {
+                if (processes[i].process_id == process_id) {
+                    display_page_table(&processes[i]);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
                 printf("Erro: Processo não encontrado.\n");
             }
         } else if (option == 4) {
