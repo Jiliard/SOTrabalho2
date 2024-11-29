@@ -128,22 +128,25 @@ int main() {
 
     while (1) {
         int option;
-        printf("\n1. Visualizar memória\n2. Criar processo\n3. Visualizar tabela de páginas\n4. Sair\nEscolha uma opção: ");
+        printf("\n1. Visualizar memória\n2. Criar processo\n3. Visualizar tabela de paginas\n4. Sair\nEscolha uma opção: ");
         scanf("%d", &option);
 
         if (option == 1) {
             display_memory(&mem);
         } else if (option == 2) {
             int process_id, process_size;
+
             printf("Digite o ID do processo: ");
             scanf("%d", &process_id);
-            printf("Digite o tamanho do processo (em bytes): ");
-            scanf("%d", &process_size);
 
-            if (process_size > max_process_size) {
-                printf("Erro: Tamanho do processo excede o máximo permitido.\n");
-                continue;
-            }
+            do {
+                printf("Digite o tamanho do processo (em bytes): ");
+                scanf("%d", &process_size);
+
+                if (process_size > max_process_size) {
+                    printf("Erro: Tamanho do processo excede o máximo permitido (%d bytes).\n", max_process_size);
+                }
+            } while (process_size > max_process_size);
 
             init_process(&processes[num_processes], process_id, process_size, frame_size);
 
