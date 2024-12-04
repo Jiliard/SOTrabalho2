@@ -89,11 +89,11 @@ void display_memory(Memory *mem) {
         }
     }
 
-    printf("\nMemória Livre: %.2f%%\n", (100.0 * free_frames) / mem->num_frames);
+    printf("\nMemoria Livre: %.2f%%\n", (100.0 * free_frames) / mem->num_frames);
 
     for (int i = 0; i < mem->num_frames; i++) {
         if (mem->frame_bitmap[i]) {
-            printf("Quadro %d: Ocupado, %.2f%% usado, Processo %d, Página %d\n",
+            printf("Quadro %d: Ocupado, %.2f%% usado, Processo %d, Pagina %d\n",
                    i, mem->frame_usage[i], mem->frame_process[i], mem->frame_page[i]);
         } else {
             printf("Quadro %d: Livre\n", i);
@@ -104,7 +104,7 @@ void display_memory(Memory *mem) {
 void display_page_table(Process *process) {
     printf("Tabela de Páginas do Processo %d:\n", process->process_id);
     for (int i = 0; i < process->page_count; i++) {
-        printf("Página %d -> Quadro %d\n", i, process->page_table[i]);
+        printf("Pagina %d -> Quadro %d\n", i, process->page_table[i]);
     }
 }
 
@@ -115,20 +115,20 @@ int main() {
 
     int memory_size, max_process_size, frame_size;
 
-    srand(time(NULL)); // Inicializa o gerador de números aleatórios
+    srand(time(NULL)); 
 
-    printf("Digite o tamanho da memória física (em bytes): ");
+    printf("Digite o tamanho da memoria física (em bytes): ");
     scanf("%d", &memory_size);
     printf("Digite o tamanho do quadro: ");
     scanf("%d", &frame_size);
-    printf("Digite o tamanho máximo de um processo (em bytes): ");
+    printf("Digite o tamanho maximo de um processo (em bytes): ");
     scanf("%d", &max_process_size);
 
     init_memory(&mem, memory_size, frame_size);
 
     while (1) {
         int option;
-        printf("\n1. Visualizar memória\n2. Criar processo\n3. Visualizar tabela de paginas\n4. Sair\nEscolha uma opção: ");
+        printf("\n1. Visualizar memoria\n2. Criar processo\n3. Visualizar tabela de paginas\n4. Sair\nEscolha uma opcao: ");
         scanf("%d", &option);
 
         if (option == 1) {
@@ -144,7 +144,7 @@ int main() {
                 scanf("%d", &process_size);
 
                 if (process_size > max_process_size) {
-                    printf("Erro: Tamanho do processo excede o máximo permitido (%d bytes).\n", max_process_size);
+                    printf("Erro: Tamanho do processo excede o maximo permitido (%d bytes).\n", max_process_size);
                 }
             } while (process_size > max_process_size);
 
@@ -154,7 +154,7 @@ int main() {
                 printf("Processo %d criado com sucesso.\n", process_id);
                 num_processes++;
             } else {
-                printf("Erro: Memória insuficiente para alocar o processo.\n");
+                printf("Erro: Memoria insuficiente para alocar o processo.\n");
             }
         } else if (option == 3) {
             int process_id;
@@ -170,7 +170,7 @@ int main() {
                 }
             }
             if (!found) {
-                printf("Erro: Processo não encontrado.\n");
+                printf("Erro: Processo nao encontrado.\n");
             }
         } else if (option == 4) {
             break;
