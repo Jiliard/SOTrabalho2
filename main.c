@@ -173,7 +173,7 @@ int main() {
                 printf("Erro: Processo nao encontrado.\n");
             }
         } else if (option == 4) {
-            printf("Encerrando o programa. Ate logo!")
+            printf("Encerrando o programa. Ate logo!");
             break;
         }
     }
